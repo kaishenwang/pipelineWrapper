@@ -13,6 +13,7 @@ import (
 	"io"
 	"github.com/kwang40/chanrw"
 	"io/ioutil"
+	"github.com/orcaman/concurrent-map"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 
 	domainToUrl map[string][]string
 	domains strings.Builder
-	ipToDomains map[int32][]string
+	ipToDomains cmap.ConcurrentMap
 	ipOpen map[int32] bool
 	domainSent map[string] bool
 )
@@ -76,8 +77,9 @@ func readURL(wg *sync.WaitGroup) error {
 func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<- []byte) {
 	defer (*wg).Done()
 	defer close(zmapInput)
-	ipToDomains = make(map[int32][]string)
+	ipToDomains = cmap.New()
 	rd := bufio.NewReader(reader)
+	var emptySlice [] string
 	for {
 		line, err := rd.ReadString('\n')
 		if err != nil {
@@ -87,8 +89,13 @@ func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<
 		parts := strings.Split(line, ",")
 		ip := parts[0]
 		domain := parts[1]
-		key := ipStr2Int(ip)
-		ipToDomains[key] = append(ipToDomains[key], domain)
+		if tmp, ok := ipToDomains.Get(ip); ok {
+			value := tmp.([]string)
+			ipToDomains.Set(ip, append(value, domain))
+		} else {
+			ipToDomains.Set(ip, append(emptySlice, domain))
+		}
+
 		zmapInput <- []byte(ip+"\n")
 	}
 }
@@ -120,11 +127,9 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 		if len(line) > 1{
 			if line[0] != '#'{
 				ipAddr = line
-				key = ipStr2Int(ipAddr)
 				ipOpen[key] = true
 			} else {
 				ipAddr = line[1:len(line)]
-				key = ipStr2Int(ipAddr)
 				if _, ok := ipOpen[key]; !ok {
 					continue
 				}
@@ -133,7 +138,9 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 			return
 		}
 
-		for _,domain := range(ipToDomains[key]) {
+		tmp,_ := ipToDomains.Get(ipAddr)
+		domains := tmp.([]string)
+		for _,domain := range(domains){
 			if _,ok := domainSent[domain]; ok {
 				continue
 			}
@@ -232,18 +239,4 @@ func contains(arr []string, str string) bool {
 		}
 	}
 	return false
-}
-
-func ipStr2Int(ip string) int32{
-	var n0,n1,n2,n3 int32
-	fmt.Sscanf(ip, "%d.%d.%d.%d", &n0,&n1,&n2,&n3)
-	return (n0<<24)|(n1<<16)|(n2<<8)|(n3)
-
-}
-
-func testOutput(wg *sync.WaitGroup, in <- chan string) {
-	defer wg.Done()
-	for line := range(in) {
-		fmt.Print(line)
-	}
 }
