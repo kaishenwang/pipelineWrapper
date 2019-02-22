@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"strings"
 	"net/url"
+	"fmt"
 )
 
 var (
@@ -20,8 +21,7 @@ var (
 )
 
 
-func readURL(in chan<- interface{}, wg *sync.WaitGroup) error {
-	defer close(in)
+func readURL(wg *sync.WaitGroup) error {
 	defer (*wg).Done()
 
 	var f *os.File
@@ -36,6 +36,7 @@ func readURL(in chan<- interface{}, wg *sync.WaitGroup) error {
 	}
 	domainToUrl = make(map[string][]string)
 	s := bufio.NewScanner(f)
+	var domains strings.Builder
 	for s.Scan() {
 		urlStr := s.Text()
 
@@ -54,9 +55,10 @@ func readURL(in chan<- interface{}, wg *sync.WaitGroup) error {
 		if !contains(value, urlStr) {
 			domainToUrl[fqdn] = append(value, urlStr)
 		}
-		in <- fqdn
+		fmt.Fprintf(&domains, fqdn)
 
 	}
+	fmt.Print(domains.String())
 	return nil
 }
 
@@ -69,10 +71,9 @@ func main() {
 	flags.StringVar(&logFile, "log-file", "", "file for log")
 	flags.Parse(os.Args[1:])
 
-	inChan := make(chan interface{})
 	var readUrlWG sync.WaitGroup
 	readUrlWG.Add(1)
-	go readURL(inChan, &readUrlWG)
+	go readURL(&readUrlWG)
 	readUrlWG.Wait()
 	/*
 	exeZDNS := exec.Command("$GOPATH/src/github.com/kwang40/zdns/./zdns", "ALOOKUP -iterative -cache-size 500000 --std-out-modules=A --output-file=" + zdnsOutputFile )
