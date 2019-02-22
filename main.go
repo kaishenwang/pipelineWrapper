@@ -117,7 +117,7 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 			return
 		}
 		line = strings.TrimSuffix(line, "\n")
-		if len(line) > 0{
+		if len(line) > 1{
 			if line[0] != '#'{
 				ipAddr = line
 				key = ipStr2Int(ipAddr)
@@ -130,7 +130,7 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 				}
 			}
 		} else {
-			continue
+			return
 		}
 
 		for _,domain := range(ipToDomains[key]) {
@@ -183,8 +183,6 @@ func main() {
 
 	exeZmap := exec.Command(zmapExecutable, "--whitelist-file=testWhiteList.txt", "--target-port=80")
 	exeZmap.Stdin = chanrw.NewReader(zmapInput)
-	exeZmap.Stdout = os.Stdout
-	exeZmap.Stderr = os.Stderr
 	exeZmapOut,_ := exeZmap.StdoutPipe()
 
 	// Start all components from the end of pipeline
