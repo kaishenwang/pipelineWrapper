@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"fmt"
 	"io"
+	"github.com/kwang40/chanrw"
 )
 
 var (
@@ -68,7 +69,7 @@ func readURL(wg *sync.WaitGroup) error {
 	return nil
 }
 
-func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<- string) {
+func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<- []byte) {
 	defer (*wg).Done()
 	defer close(zmapInput)
 	ipToDomains = make(map[int32][]string)
@@ -84,7 +85,7 @@ func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<
 		domain := parts[1]
 		key := ipStr2Int(ip)
 		ipToDomains[key] = append(ipToDomains[key], domain)
-		zmapInput <- ip+"\n"
+		zmapInput <- []byte(ip+"\n")
 	}
 }
 
@@ -97,34 +98,63 @@ func main() {
 	flags.StringVar(&logFile, "log-file", "", "file for log")
 	flags.Parse(os.Args[1:])
 
-	var readUrlWG sync.WaitGroup
+	// waitGroup
+	var readUrlWG, processZDNSOutputWG sync.WaitGroup
 	readUrlWG.Add(1)
-	go readURL(&readUrlWG)
-	readUrlWG.Wait()
-	
+	processZDNSOutputWG.Add(1)
+
+
+	// channels
+	zmapInput := make(chan []byte)
+
+	// commands
 	exeZDNS := exec.Command(os.Getenv("GOPATH")+"/src/github.com/kwang40/zdns/zdns/./zdns", "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--output-file="+zdnsOutputFile)
 	exeZDNS.Stdin = strings.NewReader(domains.String())
 	exeZDNSOut,_ := exeZDNS.StdoutPipe()
+
+
+	exeZmap := exec.Command(zmapLocation, "--whitelist-file=testWhiteList.txt", "--target-port=80")
+	exeZmap.Stdin = chanrw.NewReader(zmapInput)
+	exeZmap.Stdout = os.Stdout
+	//exeZmapOut,_ := exeZmap.StdoutPipe()
+
+
+	// Parse all urls
+	go readURL(&readUrlWG)
+	readUrlWG.Wait()
+
+	// Start all components from the end of pipeline
+	// Start zmap
+	if err := exeZmap.Start(); err != nil { //Use start, not run
+		log.Fatal("An error occured: ", err) //replace with logger, or anything you want
+	}
+	// start component between zdns and zmap
+	go processZDNSOutput(&processZDNSOutputWG, exeZDNSOut, zmapInput)
+	// start zdns
 	if err := exeZDNS.Start(); err != nil { //Use start, not run
-		fmt.Println("An error occured: ", err) //replace with logger, or anything you want
+		log.Fatal("An error occured: ", err) //replace with logger, or anything you want
 	}
 
-	var testWG sync.WaitGroup
-	testWG.Add(1)
-	zmapInput := make(chan string)
-	go testOutput(&testWG, zmapInput)
-
-
-	var processZDNSOutputWG sync.WaitGroup
-	processZDNSOutputWG.Add(1)
-	go processZDNSOutput(&processZDNSOutputWG, exeZDNSOut, zmapInput)
-
-
+	// Wait for all components from the start of pipeline
 	if err := exeZDNS.Wait(); err != nil {
 		log.Fatal(err)
 	}
 	processZDNSOutputWG.Wait()
-	testWG.Wait()
+	if err := exeZmap.Wait(); err != nil {
+		log.Fatal(err)
+	}
+	//var testWG sync.WaitGroup
+	//testWG.Add(1)
+
+	//go testOutput(&testWG, zmapInput)
+
+
+
+
+
+
+
+	//testWG.Wait()
 	return
 }
 
