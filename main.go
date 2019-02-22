@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"strings"
 	"net/url"
+	"os/exec"
 	"fmt"
 )
 
@@ -18,6 +19,7 @@ var (
 	logFile   string
 
 	domainToUrl map[string][]string
+	domains strings.Builder
 )
 
 
@@ -36,7 +38,6 @@ func readURL(wg *sync.WaitGroup) error {
 	}
 	domainToUrl = make(map[string][]string)
 	s := bufio.NewScanner(f)
-	var domains strings.Builder
 	for s.Scan() {
 		urlStr := s.Text()
 
@@ -63,7 +64,6 @@ func readURL(wg *sync.WaitGroup) error {
 		}
 
 	}
-	fmt.Println(domains.String())
 	return nil
 }
 
@@ -80,14 +80,17 @@ func main() {
 	readUrlWG.Add(1)
 	go readURL(&readUrlWG)
 	readUrlWG.Wait()
-	/*
-	exeZDNS := exec.Command("$GOPATH/src/github.com/kwang40/zdns/./zdns", "ALOOKUP -iterative -cache-size 500000 --std-out-modules=A --output-file=" + zdnsOutputFile )
-	exeZDNS.Stdin = inChan
+	
+	exeZDNS := exec.Command(os.Getenv("GOPATH")+"/src/github.com/kwang40/zdns/zdns/./zdns", "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--input-file=tmp.txt", "--output-file="+zdnsOutputFile)
+	exeZDNS.Stdin = strings.NewReader(domains.String())
+	exeZDNS.Stdout = os.Stdout
+	exeZDNS.Stderr= os.Stderr
 
 	if err := exeZDNS.Start(); err != nil { //Use start, not run
 		fmt.Println("An error occured: ", err) //replace with logger, or anything you want
 	}
-	*/
+
+	return
 }
 
 // Utilities
