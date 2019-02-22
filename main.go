@@ -46,19 +46,24 @@ func readURL(wg *sync.WaitGroup) error {
 
 		u, err := url.Parse(urlStr)
 		if err != nil {
-			log.Fatal("invalid url: ", err)
+			continue
+			//log.Fatal("invalid url: ", err)
 		}
 
 		fqdn := u.Hostname()
 		value := make([]string, 0)
-		value, _ = domainToUrl[fqdn]
+		var ok bool
+		value, ok = domainToUrl[fqdn]
 		if !contains(value, urlStr) {
 			domainToUrl[fqdn] = append(value, urlStr)
 		}
-		fmt.Fprintf(&domains, fqdn)
+		//fmt.Println(fqdn)
+		if !ok {
+			domains.WriteString(fqdn + "\n")
+		}
 
 	}
-	fmt.Print(domains.String())
+	fmt.Println(domains.String())
 	return nil
 }
 
