@@ -123,7 +123,7 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 				key = ipStr2Int(ipAddr)
 				ipOpen[key] = true
 			} else {
-				ipAddr = ipAddr[1:len(ipAddr)]
+				ipAddr = line[1:len(line)]
 				key = ipStr2Int(ipAddr)
 				if _, ok := ipOpen[key]; !ok {
 					continue
