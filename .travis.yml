@@ -1,0 +1,10 @@
+language: go
+go:
+- 1.10.1
+before_install:
+- go get github.com/sirupsen/logrus
+- go get github.com/miekg/dns
+- go get github.com/zmap/go-iptree/iptree
+- go get github.com/zmap/go-iptree/blacklist
+- go get github.com/kwang40/zdns
+- go get github.com/kwang40/zmap
