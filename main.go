@@ -20,10 +20,13 @@ var (
 	zmapExecutable  string
 	zdnsOutputFile string
 	logFile   string
+	outputFile string
 
 	domainToUrl map[string][]string
 	domains strings.Builder
 	ipToDomains map[int32][]string
+	ipOpen map[int32] bool
+	domainSent map[string] bool
 )
 
 
@@ -90,19 +93,76 @@ func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<
 	}
 }
 
+func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
+	defer (*wg).Done()
+	var f *os.File
+	if outputFile == "" || outputFile == "-" {
+		f = os.Stdout
+	} else {
+		var err error
+		f, err = os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Fatal("unable to open output file:", err.Error())
+		}
+		defer f.Close()
+	}
+	ipOpen = make(map[int32]bool)
+	domainSent = make(map[string]bool)
+	rd := bufio.NewReader(reader)
+	var ipAddr string
+	var key int32
+	for {
+		line, err := rd.ReadString('\n')
+		if err != nil {
+			return
+		}
+		line = strings.TrimSuffix(line, "\n")
+		if len(line) > 0{
+			if line[0] != '#'{
+				ipAddr = line
+				key = ipStr2Int(ipAddr)
+				ipOpen[key] = true
+			} else {
+				ipAddr = ipAddr[1:len(ipAddr)]
+				key = ipStr2Int(ipAddr)
+				if _, ok := ipOpen[key]; !ok {
+					continue
+				}
+			}
+		} else {
+			continue
+		}
+
+		for _,domain := range(ipToDomains[key]) {
+			if _,ok := domainSent[domain]; ok {
+				continue
+			}
+			domainSent[domain] = true
+			for _,url := range(domainToUrl[domain]) {
+				if _, err := f.WriteString(fmt.Sprintf("%s,%s\n",ipAddr,url)); err != nil {
+					log.Fatal("Problem writing", err.Error())
+				}
+			}
+
+		}
+	}
+
+}
 
 func main() {
 	flags := flag.NewFlagSet("flags", flag.ExitOnError)
 	flags.StringVar(&urlFile, "url-file", "-", "file contains all urls")
 	flags.StringVar(&zmapExecutable, "zmap-excutable", "", "location of zmap binary")
 	flags.StringVar(&zdnsOutputFile, "zdns-output-file", "RR.json", "file for original output of zdns")
+	flags.StringVar(&outputFile, "output-file", "-", "file for output, stdout as default")
 	flags.StringVar(&logFile, "log-file", "", "file for log")
 	flags.Parse(os.Args[1:])
 
 	// waitGroup
-	var readUrlWG, processZDNSOutputWG sync.WaitGroup
+	var readUrlWG, processZDNSOutputWG, processZmapOutputWG sync.WaitGroup
 	readUrlWG.Add(1)
 	processZDNSOutputWG.Add(1)
+	processZmapOutputWG.Add(1)
 
 	// channels
 	zmapInput := make(chan []byte)
@@ -125,9 +185,11 @@ func main() {
 	exeZmap.Stdin = chanrw.NewReader(zmapInput)
 	exeZmap.Stdout = os.Stdout
 	exeZmap.Stderr = os.Stderr
-	//exeZmapOut,_ := exeZmap.StdoutPipe()
+	exeZmapOut,_ := exeZmap.StdoutPipe()
 
 	// Start all components from the end of pipeline
+	// Start process final output
+	go processZmapOutput(&processZmapOutputWG, exeZmapOut)
 	// Start zmap
 	if err := exeZmap.Start(); err != nil {
 		log.Fatal("An error occured: ", err)
@@ -147,6 +209,7 @@ func main() {
 	if err := exeZmap.Wait(); err != nil {
 		log.Fatal(err)
 	}
+	processZmapOutputWG.Wait()
 	//var testWG sync.WaitGroup
 	//testWG.Add(1)
 
