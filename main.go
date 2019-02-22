@@ -12,11 +12,12 @@ import (
 	"fmt"
 	"io"
 	"github.com/kwang40/chanrw"
+	"io/ioutil"
 )
 
 var (
 	urlFile	string
-	zmapLocation  string
+	zmapExecutable  string
 	zdnsOutputFile string
 	logFile   string
 
@@ -93,7 +94,7 @@ func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<
 func main() {
 	flags := flag.NewFlagSet("flags", flag.ExitOnError)
 	flags.StringVar(&urlFile, "url-file", "-", "file contains all urls")
-	flags.StringVar(&zmapLocation, "zmap-location", "", "location of zmap binary")
+	flags.StringVar(&zmapExecutable, "zmap-excutable", "", "location of zmap binary")
 	flags.StringVar(&zdnsOutputFile, "zdns-output-file", "RR.json", "file for original output of zdns")
 	flags.StringVar(&logFile, "log-file", "", "file for log")
 	flags.Parse(os.Args[1:])
@@ -113,7 +114,7 @@ func main() {
 	exeZDNSOut,_ := exeZDNS.StdoutPipe()
 
 
-	exeZmap := exec.Command(zmapLocation, "--whitelist-file=testWhiteList.txt", "--target-port=80")
+	exeZmap := exec.Command(zmapExecutable, "--whitelist-file=testWhiteList.txt", "--target-port=80")
 	exeZmap.Stdin = chanrw.NewReader(zmapInput)
 	exeZmap.Stdout = os.Stdout
 	//exeZmapOut,_ := exeZmap.StdoutPipe()
@@ -121,18 +122,23 @@ func main() {
 
 	// Parse all urls
 	go readURL(&readUrlWG)
+	// Create dummy whitelist file for zmap
+	err := ioutil.WriteFile("testWhiteList.txt", []byte("122.227.0.14/32\n"), 0644)
+	if err != nil {
+		log.Fatal("An error occured: ", err)
+	}
 	readUrlWG.Wait()
 
 	// Start all components from the end of pipeline
 	// Start zmap
-	if err := exeZmap.Start(); err != nil { //Use start, not run
-		log.Fatal("An error occured: ", err) //replace with logger, or anything you want
+	if err := exeZmap.Start(); err != nil { 
+		log.Fatal("An error occured: ", err)
 	}
 	// start component between zdns and zmap
 	go processZDNSOutput(&processZDNSOutputWG, exeZDNSOut, zmapInput)
 	// start zdns
-	if err := exeZDNS.Start(); err != nil { //Use start, not run
-		log.Fatal("An error occured: ", err) //replace with logger, or anything you want
+	if err := exeZDNS.Start(); err != nil {
+		log.Fatal("An error occured: ", err)
 	}
 
 	// Wait for all components from the start of pipeline
