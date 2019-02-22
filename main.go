@@ -77,10 +77,10 @@ func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<
 	rd := bufio.NewReader(reader)
 	for {
 		line, err := rd.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
 		if err != nil {
 			return
 		}
+		line = strings.TrimSuffix(line, "\n")
 		parts := strings.Split(line, ",")
 		ip := parts[0]
 		domain := parts[1]
@@ -104,21 +104,8 @@ func main() {
 	readUrlWG.Add(1)
 	processZDNSOutputWG.Add(1)
 
-
 	// channels
 	zmapInput := make(chan []byte)
-
-	// commands
-	exeZDNS := exec.Command(os.Getenv("GOPATH")+"/src/github.com/kwang40/zdns/zdns/./zdns", "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--output-file="+zdnsOutputFile)
-	exeZDNS.Stdin = strings.NewReader(domains.String())
-	exeZDNSOut,_ := exeZDNS.StdoutPipe()
-
-
-	exeZmap := exec.Command(zmapExecutable, "--whitelist-file=testWhiteList.txt", "--target-port=80")
-	exeZmap.Stdin = chanrw.NewReader(zmapInput)
-	exeZmap.Stdout = os.Stdout
-	//exeZmapOut,_ := exeZmap.StdoutPipe()
-
 
 	// Parse all urls
 	go readURL(&readUrlWG)
@@ -129,9 +116,20 @@ func main() {
 	}
 	readUrlWG.Wait()
 
+	// commands
+	exeZDNS := exec.Command(os.Getenv("GOPATH")+"/src/github.com/kwang40/zdns/zdns/./zdns", "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--output-file="+zdnsOutputFile)
+	exeZDNS.Stdin = strings.NewReader(domains.String())
+	exeZDNSOut,_ := exeZDNS.StdoutPipe()
+
+	exeZmap := exec.Command(zmapExecutable, "--whitelist-file=testWhiteList.txt", "--target-port=80")
+	exeZmap.Stdin = chanrw.NewReader(zmapInput)
+	exeZmap.Stdout = os.Stdout
+	exeZmap.Stderr = os.Stderr
+	//exeZmapOut,_ := exeZmap.StdoutPipe()
+
 	// Start all components from the end of pipeline
 	// Start zmap
-	if err := exeZmap.Start(); err != nil { 
+	if err := exeZmap.Start(); err != nil {
 		log.Fatal("An error occured: ", err)
 	}
 	// start component between zdns and zmap
