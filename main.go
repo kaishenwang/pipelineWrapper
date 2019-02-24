@@ -36,7 +36,7 @@ var (
 )
 
 func logPipelineMetrics() {
-	f, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Fatal("unable to open output file:", err.Error())
 	}
