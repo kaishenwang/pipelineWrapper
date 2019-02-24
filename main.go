@@ -14,6 +14,7 @@ import (
 	"github.com/kwang40/chanrw"
 	"io/ioutil"
 	"github.com/orcaman/concurrent-map"
+	"time"
 )
 
 var (
@@ -28,8 +29,62 @@ var (
 	ipToDomains cmap.ConcurrentMap
 	ipOpen map[int32] bool
 	domainSent map[string] bool
+
+	// some var for logging
+	validUrlCount, invalidUrlCount, uniqueDomainCount, totalIpCount, uniqueIpCount, uniqueOpenIpCount, domainOpenCount, urlOpenCount int32
+	pipelineStart, readUrlFinished, zdnsFinished, zmapFinished, allFinished time.Time
 )
 
+func logPipelineMetrics() {
+	f, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatal("unable to open output file:", err.Error())
+	}
+	defer f.Close()
+
+	// log count
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",validUrlCount,validUrlCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",invalidUrlCount,invalidUrlCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",uniqueDomainCount,uniqueDomainCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",totalIpCount,totalIpCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",uniqueIpCount,uniqueIpCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",uniqueOpenIpCount,uniqueOpenIpCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",domainOpenCount,domainOpenCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",urlOpenCount,urlOpenCount)); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+
+	// log time cost
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",pipelineStart,pipelineStart.String())); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",readUrlFinished,readUrlFinished.String())); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",zdnsFinished,zdnsFinished.String())); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",zmapFinished,zmapFinished.String())); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",allFinished,allFinished.String())); err != nil {
+		log.Fatal("Problem writing", err.Error())
+	}
+}
 
 func readURL(wg *sync.WaitGroup) error {
 	defer (*wg).Done()
@@ -55,10 +110,11 @@ func readURL(wg *sync.WaitGroup) error {
 
 		u, err := url.Parse(urlStr)
 		if err != nil {
+			invalidUrlCount += 1
 			continue
-			//log.Fatal("invalid url: ", err)
 		}
 
+		validUrlCount += 1
 		fqdn := u.Hostname()
 		value := make([]string, 0)
 		var ok bool
@@ -71,6 +127,7 @@ func readURL(wg *sync.WaitGroup) error {
 		}
 
 	}
+	uniqueDomainCount = int32(len(domainToUrl))
 	return nil
 }
 
@@ -89,10 +146,12 @@ func processZDNSOutput(wg *sync.WaitGroup, reader io.ReadCloser, zmapInput chan<
 		parts := strings.Split(line, ",")
 		ip := parts[0]
 		domain := parts[1]
+		totalIpCount += 1
 		if tmp, ok := ipToDomains.Get(ip); ok {
 			value := tmp.([]string)
 			ipToDomains.Set(ip, append(value, domain))
 		} else {
+			uniqueIpCount += 1
 			ipToDomains.Set(ip, append(emptySlice, domain))
 		}
 
@@ -126,6 +185,7 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 		line = strings.TrimSuffix(line, "\n")
 		if len(line) > 1{
 			if line[0] != '#'{
+				uniqueOpenIpCount += 1
 				ipAddr = line
 				ipOpen[key] = true
 			} else {
@@ -144,8 +204,10 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 			if _,ok := domainSent[domain]; ok {
 				continue
 			}
+			domainOpenCount += 1
 			domainSent[domain] = true
 			for _,url := range(domainToUrl[domain]) {
+				urlOpenCount += 1
 				if _, err := f.WriteString(fmt.Sprintf("%s,%s\n",ipAddr,url)); err != nil {
 					log.Fatal("Problem writing", err.Error())
 				}
@@ -157,12 +219,13 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 }
 
 func main() {
+	pipelineStart = time.Now()
 	flags := flag.NewFlagSet("flags", flag.ExitOnError)
 	flags.StringVar(&urlFile, "url-file", "-", "file contains all urls")
 	flags.StringVar(&zmapExecutable, "zmap-excutable", "", "location of zmap binary")
 	flags.StringVar(&zdnsOutputFile, "zdns-output-file", "RR.json", "file for original output of zdns")
 	flags.StringVar(&outputFile, "output-file", "-", "file for output, stdout as default")
-	flags.StringVar(&logFile, "log-file", "", "file for log")
+	flags.StringVar(&logFile, "log-file", "log.txt", "file for log")
 	flags.Parse(os.Args[1:])
 
 	// waitGroup
@@ -182,6 +245,7 @@ func main() {
 		log.Fatal("An error occured: ", err)
 	}
 	readUrlWG.Wait()
+	readUrlFinished = time.Now()
 
 	// commands
 	exeZDNS := exec.Command(os.Getenv("GOPATH")+"/src/github.com/kwang40/zdns/zdns/./zdns", "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--output-file="+zdnsOutputFile)
@@ -205,7 +269,7 @@ func main() {
 	if err := exeZDNS.Start(); err != nil {
 		log.Fatal("An error occured: ", err)
 	}
-
+	zdnsFinished = time.Now()
 	// Wait for all components from the start of pipeline
 	if err := exeZDNS.Wait(); err != nil {
 		log.Fatal(err)
@@ -214,19 +278,12 @@ func main() {
 	if err := exeZmap.Wait(); err != nil {
 		log.Fatal(err)
 	}
+	zmapFinished = time.Now()
 	processZmapOutputWG.Wait()
-	//var testWG sync.WaitGroup
-	//testWG.Add(1)
 
-	//go testOutput(&testWG, zmapInput)
+	allFinished = time.Now()
 
-
-
-
-
-
-
-	//testWG.Wait()
+	logPipelineMetrics()
 	return
 }
 
