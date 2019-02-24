@@ -43,47 +43,21 @@ func logPipelineMetrics() {
 	defer f.Close()
 
 	// log count
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",validUrlCount,validUrlCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",invalidUrlCount,invalidUrlCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",uniqueDomainCount,uniqueDomainCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",totalIpCount,totalIpCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",uniqueIpCount,uniqueIpCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",uniqueOpenIpCount,uniqueOpenIpCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",domainOpenCount,domainOpenCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%d\n",urlOpenCount,urlOpenCount)); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-
+	f.WriteString(fmt.Sprintf("validUrlCount:%d\n",validUrlCount))
+	f.WriteString(fmt.Sprintf("invalidUrlCount:%d\n",invalidUrlCount))
+	f.WriteString(fmt.Sprintf("uniqueDomainCount:%d\n",uniqueDomainCount))
+	f.WriteString(fmt.Sprintf("totalIpCount:%d\n",totalIpCount))
+	f.WriteString(fmt.Sprintf("uniqueIpCount:%d\n",uniqueIpCount))
+	f.WriteString(fmt.Sprintf("uniqueOpenIpCount:%d\n",uniqueOpenIpCount))
+	f.WriteString(fmt.Sprintf("domainOpenCount:%d\n",domainOpenCount))
+	f.WriteString(fmt.Sprintf("urlOpenCount:%d\n",urlOpenCount))
 	// log time cost
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",pipelineStart,pipelineStart.String())); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",readUrlFinished,readUrlFinished.String())); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",zdnsFinished,zdnsFinished.String())); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",zmapFinished,zmapFinished.String())); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
-	if _, err := f.WriteString(fmt.Sprintf("%#v:%s\n",allFinished,allFinished.String())); err != nil {
-		log.Fatal("Problem writing", err.Error())
-	}
+	f.WriteString("pipelineStart:"+pipelineStart.String()+"\n")
+	f.WriteString("readUrlFinished:"+readUrlFinished.String()+"\n")
+	f.WriteString("zdnsFinished:"+zdnsFinished.String()+"\n")
+	f.WriteString("zmapFinished:"+zmapFinished.String()+"\n")
+	f.WriteString("allFinished:"+allFinished.String()+"\n")
+	
 }
 
 func readURL(wg *sync.WaitGroup) error {
