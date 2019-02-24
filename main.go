@@ -243,11 +243,11 @@ func main() {
 	if err := exeZDNS.Start(); err != nil {
 		log.Fatal("An error occured: ", err)
 	}
-	zdnsFinished = time.Now()
 	// Wait for all components from the start of pipeline
 	if err := exeZDNS.Wait(); err != nil {
 		log.Fatal(err)
 	}
+	zdnsFinished = time.Now()
 	processZDNSOutputWG.Wait()
 	if err := exeZmap.Wait(); err != nil {
 		log.Fatal(err)
