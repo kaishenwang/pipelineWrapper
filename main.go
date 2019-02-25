@@ -19,6 +19,7 @@ import (
 
 var (
 	urlFile	string
+	zdnsExecutable  string
 	zmapExecutable  string
 	zdnsOutputFile string
 	logFile   string
@@ -196,6 +197,7 @@ func main() {
 	pipelineStart = time.Now()
 	flags := flag.NewFlagSet("flags", flag.ExitOnError)
 	flags.StringVar(&urlFile, "url-file", "-", "file contains all urls")
+	flags.StringVar(&zdnsExecutable, "zdns-excutable", os.Getenv("GOPATH")+"/src/github.com/kwang40/zdns/zdns/./zdns", "location of zdns binary")
 	flags.StringVar(&zmapExecutable, "zmap-excutable", "", "location of zmap binary")
 	flags.StringVar(&zdnsOutputFile, "zdns-output-file", "RR.json", "file for original output of zdns")
 	flags.StringVar(&outputFile, "output-file", "-", "file for output, stdout as default")
@@ -222,7 +224,7 @@ func main() {
 	readUrlFinished = time.Now()
 
 	// commands
-	exeZDNS := exec.Command(os.Getenv("GOPATH")+"/src/github.com/kwang40/zdns/zdns/./zdns", "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--output-file="+zdnsOutputFile)
+	exeZDNS := exec.Command(zdnsExecutable, "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--output-file="+zdnsOutputFile)
 	exeZDNS.Stdin = strings.NewReader(domains.String())
 	exeZDNSOut,_ := exeZDNS.StdoutPipe()
 
