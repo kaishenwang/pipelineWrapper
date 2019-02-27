@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"github.com/orcaman/concurrent-map"
 	"time"
+	"github.com/pkg/profile"
 )
 
 var (
@@ -194,6 +195,7 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 }
 
 func main() {
+	defer profile.Start().Stop()
 	pipelineStart = time.Now()
 	flags := flag.NewFlagSet("flags", flag.ExitOnError)
 	flags.StringVar(&urlFile, "url-file", "-", "file contains all urls")
