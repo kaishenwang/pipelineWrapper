@@ -15,7 +15,6 @@ import (
 	"io/ioutil"
 	"github.com/orcaman/concurrent-map"
 	"time"
-	"github.com/pkg/profile"
 )
 
 var (
@@ -195,7 +194,6 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 }
 
 func main() {
-	defer profile.Start().Stop()
 	pipelineStart = time.Now()
 	flags := flag.NewFlagSet("flags", flag.ExitOnError)
 	flags.StringVar(&urlFile, "url-file", "-", "file contains all urls")
@@ -226,7 +224,7 @@ func main() {
 	readUrlFinished = time.Now()
 
 	// commands
-	exeZDNS := exec.Command(zdnsExecutable, "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--output-file="+zdnsOutputFile)
+	exeZDNS := exec.Command(zdnsExecutable, "ALOOKUP", "-iterative", "--cache-size=500000", "--std-out-modules=A", "--trace", "--output-file="+zdnsOutputFile)
 	exeZDNS.Stdin = strings.NewReader(domains.String())
 	exeZDNSOut,_ := exeZDNS.StdoutPipe()
 
