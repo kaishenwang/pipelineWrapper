@@ -28,7 +28,7 @@ var (
 	domainToUrl map[string][]string
 	domains strings.Builder
 	ipToDomains cmap.ConcurrentMap
-	ipOpen map[int32] bool
+	ipOpen map[string] bool
 	domainSent map[string] bool
 
 	// some var for logging
@@ -147,11 +147,10 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 		}
 		defer f.Close()
 	}
-	ipOpen = make(map[int32]bool)
+	ipOpen = make(map[string]bool)
 	domainSent = make(map[string]bool)
 	rd := bufio.NewReader(reader)
 	var ipAddr string
-	var key int32
 	for {
 		line, err := rd.ReadString('\n')
 		if err != nil {
@@ -162,10 +161,10 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 			if line[0] != '#'{
 				uniqueOpenIpCount += 1
 				ipAddr = line
-				ipOpen[key] = true
+				ipOpen[ipAddr] = true
 			} else {
 				ipAddr = line[1:len(line)]
-				if _, ok := ipOpen[key]; !ok {
+				if _, ok := ipOpen[ipAddr]; !ok {
 					continue
 				}
 			}
