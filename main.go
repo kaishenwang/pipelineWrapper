@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"github.com/orcaman/concurrent-map"
 	"time"
+	"encoding/csv"
 )
 
 var (
@@ -148,6 +149,11 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 		}
 		defer f.Close()
 	}
+	outputWriter := csv.NewWriter(f)
+
+	f2, _ := os.OpenFile("IPOpen.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	defer f2.Close()
+
 	ipOpen = make(map[string]bool)
 	domainSent = make(map[string]bool)
 	rd := bufio.NewReader(reader)
@@ -163,6 +169,7 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 				uniqueOpenIpCount += 1
 				ipAddr = line
 				ipOpen[ipAddr] = true
+				f2.WriteString(ipAddr + "\n")
 			} else {
 				ipAddr = line[1:len(line)]
 				if _, ok := ipOpen[ipAddr]; !ok {
@@ -183,21 +190,17 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 			domainSent[domain] = true
 			for _,url := range(domainToUrl[domain]) {
 				urlOpenCount += 1
-				if _, err := f.WriteString(fmt.Sprintf("%s,%s\n",ipAddr,url)); err != nil {
-					log.Fatal("Problem writing", err.Error())
+				err := outputWriter.Write([]string{ipAddr, url})
+				if err == nil {
+					outputWriter.Flush()
+					err := outputWriter.Error()
+					if err != nil {
+						log.Fatal("Problem writing", err.Error())
+					}
 				}
 			}
 
 		}
-	}
-
-	f2, err := os.OpenFile("tmpIPOpen.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatal("unable to open output file:", err.Error())
-	}
-	defer f2.Close()
-	for k,_ := range(ipOpen) {
-		f.WriteString(k + "\n")
 	}
 
 }
