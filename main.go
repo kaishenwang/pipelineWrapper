@@ -58,6 +58,7 @@ func logPipelineMetrics() {
 	f.WriteString("zdnsFinished:"+zdnsFinished.String()+"\n")
 	f.WriteString("zmapFinished:"+zmapFinished.String()+"\n")
 	f.WriteString("allFinished:"+allFinished.String()+"\n")
+
 	
 }
 
@@ -188,6 +189,15 @@ func processZmapOutput (wg *sync.WaitGroup, reader io.ReadCloser) {
 			}
 
 		}
+	}
+
+	f2, err := os.OpenFile("tmpIPOpen.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatal("unable to open output file:", err.Error())
+	}
+	defer f2.Close()
+	for k,_ := range(ipOpen) {
+		f.WriteString(k + "\n")
 	}
 
 }
